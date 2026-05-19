@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unseen Clone Prototype</title>
+    <style>
+        /* Base Reset & Styling */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #050505;
+            color: #ffffff;
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* The 3D Canvas fixed to the background */
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none; /* Let clicks pass through */
+        }
+
+        /* Typography & Layout */
+        .section {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 10vw;
+            /* A subtle gradient overlay to make text pop over the 3D */
+            background: linear-gradient(to bottom, rgba(5,5,5,0) 0%, rgba(5,5,5,0.8) 100%);
+        }
+
+        h1 {
+            font-size: 6vw;
+            text-transform: uppercase;
+            letter-spacing: -0.05em;
+            line-height: 1;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 1.5rem;
+            max-width: 500px;
+            color: #a0a0a0;
+        }
+
+        .spacer {
+            height: 50vh;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Background -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- HTML Content -->
+    <main>
+        <section class="section">
+            <h1 class="gsap-text">Immersive<br>Web Design</h1>
+            <p class="gsap-text">Scroll down to see how the 3D object reacts to your movement.</p>
+        </section>
+        
+        <div class="spacer"></div>
+
+        <section class="section" style="text-align: right; align-items: flex-end;">
+            <h1 class="gsap-text">Powered by<br>Three.js</h1>
+            <p class="gsap-text">The canvas is fixed in the background while HTML smooth-scrolls over it.</p>
+        </section>
+        
+        <div class="spacer"></div>
+
+        <section class="section">
+            <h1 class="gsap-text">The Future is<br>Interactive</h1>
+            <p class="gsap-text">Combine GSAP, Lenis, and WebGL to build award-winning experiences.</p>
+        </section>
+    </main>
+
+    <!-- Import Maps to use ES Modules in the browser without a bundler -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "gsap": "https://unpkg.com/gsap@3.12.4/index.js",
+                "@studio-freight/lenis": "https://unpkg.com/@studio-freight/lenis@1.0.34/dist/lenis.mjs"
+            }
+        }
+    </script>
+
+    <!-- Main JavaScript -->
+    <script type="module">
+        import * as THREE from 'three';
+        import gsap from 'gsap';
+        import Lenis from '@studio-freight/lenis';
+
+        // --- 1. SETUP LENIS (SMOOTH SCROLLING) ---
+        const lenis = new Lenis({
+            duration: 1.5,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), 
+            smooth: true,
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // --- 2. SETUP THREE.JS SCENE ---
+        const canvas = document.querySelector('#webgl-canvas');
+        const scene = new THREE.Scene();
+        
+        // Add a subtle fog to fade the object in the distance
+        scene.fog = new THREE.Fog('#050505', 3, 10);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // --- 3. CREATE THE 3D OBJECT (THE "BLOB") ---
+        // A TorusKnot is mathematically complex and looks great when rotating
+        const geometry = new THREE.TorusKnotGeometry(1.5, 0.4, 128, 64);
+        
+        // A dark, metallic wireframe material
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x4444ff,
+            wireframe: true,
+            emissive: 0x111155,
+            emissiveIntensity: 1
+        });
+        
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        // Add lights to make it look 3D
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xff4444, 50);
+        pointLight.position.set(2, 3, 4);
+        scene.add(pointLight);
+
+        // --- 4. ANIMATION & SCROLL LOGIC ---
+        const clock = new THREE.Clock();
+        let scrollY = 0;
+
+        // Listen to Lenis scroll events to update our scrollY variable
+        lenis.on('scroll', (e) => {
+            scrollY = e.scroll;
+            
+            // Connect scroll to the object's rotation (Kinetic scroll effect)
+            gsap.to(mesh.rotation, {
+                y: scrollY * 0.002,
+                x: scrollY * 0.001,
+                ease: "power2.out",
+                duration: 0.5
+            });
+        });
+
+        // The main render loop
+        function tick() {
+            const elapsedTime = clock.getElapsedTime();
+
+            // Constant slow floating animation (independent of scroll)
+            mesh.position.y = Math.sin(elapsedTime * 0.5) * 0.2;
+            mesh.rotation.z = elapsedTime * 0.1;
+
+            renderer.render(scene, camera);
+            window.requestAnimationFrame(tick);
+        }
+        tick();
+
+        // --- 5. HANDLE WINDOW RESIZING ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 6. SIMPLE GSAP TEXT ANIMATION ---
+        // Fades text in when the page loads
+        gsap.from(".gsap-text", {
+            y: 50,
+            opacity: 0,
+            duration: 1.5,
+            stagger: 0.2,
+            ease: "power4.out",
+            delay: 0.2
+        });
+    </script>
+</body>
+</html>
